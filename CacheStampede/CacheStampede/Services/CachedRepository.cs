@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace CacheStampede.Services;
@@ -14,7 +12,7 @@ public class CachedRepository(IDistributedCache cache)
     public async Task<T?> GetOrLoadAsync<T>(string cacheKey, Func<Task<T?>> dbFactory, TimeSpan ttl, CancellationToken ct = default)
     {
         // 1. Happy path
-        var cachedValue = await _cache.GetStringAsync(cacheKey);
+        var cachedValue = await _cache.GetStringAsync(cacheKey, token: ct);
         if (!string.IsNullOrEmpty(cachedValue))
             return JsonSerializer.Deserialize<T?>(cachedValue);
 
