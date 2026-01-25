@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace CacheStampede.Services;
