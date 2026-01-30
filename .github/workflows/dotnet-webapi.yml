@@ -19,6 +19,8 @@ jobs:
         with:
           dotnet-version: "8.0.x"
           cache: true
+          cache-dependency-path: |
+            CacheImplementation/**/packages.lock.json
 
       - name: Restore
         run: dotnet restore CacheImplementation/CacheImplementation.sln
