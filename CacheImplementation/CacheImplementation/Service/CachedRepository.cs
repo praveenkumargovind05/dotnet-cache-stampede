@@ -6,17 +6,11 @@ using Microsoft.Extensions.Logging;
 
 namespace CacheImplementation.Service;
 
-public class CachedRepository
+public class CachedRepository(IDistributedCache cache, ILogger<CachedRepository> logger)
 {
-    private readonly IDistributedCache _cache;
+    private readonly IDistributedCache _cache = cache;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = [];
-    private readonly ILogger<CachedRepository> _logger;
-
-    public CachedRepository(IDistributedCache cache, ILogger<CachedRepository> logger)
-    {
-        _cache = cache;
-        _logger = logger;
-    }
+    private readonly ILogger<CachedRepository> _logger = logger;
 
     public async Task<T?> GetOrCreateAsync<T>(string key, Func<Task<T?>> factory, DistributedCacheEntryOptions options, CancellationToken ct)
     {
