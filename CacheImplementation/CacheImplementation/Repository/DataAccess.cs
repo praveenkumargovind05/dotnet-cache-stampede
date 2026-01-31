@@ -1,44 +1,78 @@
-using System;
+using System.Data;
+using Dapper;
 using CacheImplementation.Model;
+using Microsoft.Extensions.Logging;
+using CacheImplementation.Repository.Dapper;
 
 namespace CacheImplementation.Repository;
 
-public class DataAccess : IDataAccess
+public sealed class DataAccess(
+    IDbConnectionFactory factory,
+    ILogger<DataAccess> logger) : IDataAccess
 {
-    private List<Product> Products { get; set; } = [];
-    public async Task AddProduct(Product product)
+    private readonly IDbConnectionFactory _factory = factory;
+    private readonly ILogger<DataAccess> _logger = logger;
+
+    public async Task<int> AddProductAsync(Product product)
     {
         try
         {
-            await Task.Delay(100);
-            Products.Add(product);
+            using var conn = _factory.Create();
+
+            return await conn.ExecuteScalarAsync<int>(
+                "sp_AddProduct",
+                new
+                {
+                    product.ProductName,
+                    product.Category,
+                    product.Description,
+                    product.Price
+                },
+                commandType: CommandType.StoredProcedure
+            );
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to add product");
             throw;
         }
     }
 
-    public Product? GetProductByID(int ProductID)
+    public async Task<Product?> GetProductByIdAsync(int id)
     {
         try
         {
-            return Products.FirstOrDefault(product => product.ProductID == ProductID);
+            using var conn = _factory.Create();
+
+            return await conn.QueryFirstOrDefaultAsync<Product>(
+                "sp_GetProductById",
+                new { ProductID = id },
+                commandType: CommandType.StoredProcedure
+            );
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to get product {Id}", id);
             throw;
         }
     }
 
-    public List<Product> GetProducts()
+    public async Task<IReadOnlyList<Product>> GetProductsAsync()
     {
         try
         {
-            return Products;
+            using var conn = _factory.Create();
+
+            var result = await conn.QueryAsync<Product>(
+                "sp_GetProducts",
+                commandType: CommandType.StoredProcedure
+            );
+
+            return result.AsList();
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to get products");
             throw;
         }
     }

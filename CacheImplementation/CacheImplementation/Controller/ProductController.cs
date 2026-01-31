@@ -20,7 +20,7 @@ namespace CacheImplementation.Controller
         {
             try
             {
-                var data = await _cache.GetOrCreateAsync("ALL_PRODUCTS", async () => _dataAccess.GetProducts(),
+                var data = await _cache.GetOrCreateAsync("ALL_PRODUCTS", async () => await _dataAccess.GetProductsAsync(),
                 new()
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2),
@@ -43,7 +43,7 @@ namespace CacheImplementation.Controller
                 if (productID <= 0)
                     return BadRequest("ProductID must be greater than 0");
 
-                var data = await _cache.GetOrCreateAsync($"PRODUCT_{productID}", async () => _dataAccess.GetProductByID(productID),
+                var data = await _cache.GetOrCreateAsync($"PRODUCT_{productID}", async () => await _dataAccess.GetProductByIdAsync(productID),
                 new()
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2),
@@ -76,8 +76,8 @@ namespace CacheImplementation.Controller
                 // Invalidate cache before adding
                 await _cache.RemoveAsync("ALL_PRODUCTS", ct);
                 
-                await _dataAccess.AddProduct(product);
-                return CreatedAtAction(nameof(GetProductByID), new { productID = product.ProductID }, product);
+                var productID = await _dataAccess.AddProductAsync(product);
+                return CreatedAtAction(nameof(GetProductByID), new { productID = productID}, product);
             }
             catch (Exception ex)
             {

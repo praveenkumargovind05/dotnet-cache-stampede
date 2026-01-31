@@ -1,87 +1,59 @@
-using System;
-using System.Collections.Concurrent;
 using System.Text.Json;
+using CacheImplementation.Model;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Logging;
 
 namespace CacheImplementation.Service;
 
-public class CachedRepository(IDistributedCache cache, ILogger<CachedRepository> logger)
+public sealed class CachedRepository(IDistributedCache cache, ILogger<CachedRepository> logger)
 {
     private readonly IDistributedCache _cache = cache;
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = [];
+    private readonly KeyedSemaphore _lockManager = new();
     private readonly ILogger<CachedRepository> _logger = logger;
 
     public async Task<T?> GetOrCreateAsync<T>(string key, Func<Task<T?>> factory, DistributedCacheEntryOptions options, CancellationToken ct)
     {
         try
         {
-            // If found in cache, return it
+            // 1. Try cache first  
             var cachedData = await _cache.GetStringAsync(key, ct);
             if (!string.IsNullOrEmpty(cachedData))
             {
                 _logger.LogInformation("Cache hit for key: {Key}", key);
-                return JsonSerializer.Deserialize<T>(cachedData);
+                return JsonSerializer.Deserialize<T>(cachedData, CacheJson.Options);
             }
 
-            // Lock per key
-            var keyLock = _locks.GetOrAdd(key, new SemaphoreSlim(1, 1));
-            await keyLock.WaitAsync(ct);
+            // 2. Acquire lock
+            using var _ = await _lockManager.LockAsync(key, ct);
 
-            try
-            {
-                // Double-check after acquiring lock
-                cachedData = await _cache.GetStringAsync(key, ct);
-                if (!string.IsNullOrEmpty(cachedData))
-                    return JsonSerializer.Deserialize<T>(cachedData);
+            // 3. Double-check after acquiring lock
+            cachedData = await _cache.GetStringAsync(key, ct);
 
-                _logger.LogInformation("Cache miss for key: {Key}, loading from factory", key);
+            if (!string.IsNullOrEmpty(cachedData))
+                return JsonSerializer.Deserialize<T>(cachedData, CacheJson.Options);
 
-                // Load from external source and cache it
-                var data = await factory();
-                
-                if (data != null)
-                {
-                    await _cache.SetStringAsync(key, JsonSerializer.Serialize(data), options, ct);
-                    _logger.LogInformation("Data cached for key: {Key}", key);
-                }
-                else
-                {
-                    _logger.LogWarning("Factory returned null for key: {Key}", key);
-                }
+            _logger.LogInformation("Cache miss for key: {Key}, loading from factory", key);
 
-                return data;
-            }
-            finally
-            {
-                keyLock.Release();
-                if (keyLock.CurrentCount == 1)
-                    _locks.TryRemove(key, out _);
-            }
-        }
-        catch (OperationCanceledException ex)
-        {
-            _logger.LogWarning(ex, "Cache operation cancelled for key: {Key}", key);
-            throw;
+            // 4. Load from external source and cache it
+            var data = await factory();
+            if (data == null)
+                return default;
+
+            await _cache.SetStringAsync(key, JsonSerializer.Serialize(data, CacheJson.Options), options, ct);
+            _logger.LogInformation("Data cached for key: {Key}", key);
+
+
+            return data;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in GetOrCreateAsync for key: {Key}", key);
-            throw;
+            _logger.LogError(ex, "Redis failed for key {key}", key);
+
+            // Fallback to source
+            return await factory();
         }
+
     }
 
-    public async Task RemoveAsync(string key, CancellationToken ct = default)
-    {
-        try
-        {
-            await _cache.RemoveAsync(key, ct);
-            _logger.LogInformation("Cache removed for key: {Key}", key);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error removing cache for key: {Key}", key);
-            throw;
-        }
-    }
+    public Task RemoveAsync(string key, CancellationToken ct)
+        => _cache.RemoveAsync(key, ct);
 }
