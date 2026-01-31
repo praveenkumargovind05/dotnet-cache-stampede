@@ -37,3 +37,24 @@ jobs:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
           package: "${{ env.AZURE_WEBAPP_PACKAGE_PATH }}"
+
+      - name: Verify Deployment (Health Check)
+        run: |
+          echo "Waiting for app to warm up..."
+          sleep 20
+
+          for i in {1..5}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed"
+              exit 0
+            fi
+
+            echo "Attempt $i failed (status=$STATUS). Retrying..."
+            sleep 15
+          done
+
+          echo "Health check failed"
+          exit 1
+
