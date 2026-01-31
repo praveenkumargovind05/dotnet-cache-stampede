@@ -9,16 +9,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddDistributedCache(builder);
 builder.Services.AddServices();
-builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapHealthChecks("/health").AllowAnonymous();
+app.MapGet("/health", () => Results.Ok("Healthy"));
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
