@@ -44,7 +44,7 @@ jobs:
           sleep 20
 
           for i in {1..5}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health)
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://inventory-service-bjczb9drfbctfsek.canadaeast-01.azurewebsites.net/health)
 
             if [ "$STATUS" = "200" ]; then
               echo "Health check passed"
