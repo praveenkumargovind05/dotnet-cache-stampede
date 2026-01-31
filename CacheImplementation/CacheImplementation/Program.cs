@@ -14,6 +14,10 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health").AllowAnonymous();
 
 // Configure the HTTP request pipeline.
